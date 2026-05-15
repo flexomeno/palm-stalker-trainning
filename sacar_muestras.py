@@ -1,9 +1,18 @@
-import rasterio
-from rasterio.windows import Window
-import numpy as np
+import argparse
 import os
 import random
+from pathlib import Path
+
+import numpy as np
+import rasterio
+from rasterio.windows import Window
 from PIL import Image
+
+BASE = Path(__file__).resolve().parent
+ARCHIVO_ENTRADA_DEFECTO = BASE.parent / "Palm-stalker/ortofotomosaico_10_cm-px.tif"
+CARPETA_RESULTADO_DEFECTO = BASE / "muestras"
+CANTIDAD_DE_FOTOS_DEFECTO = 50
+TAMANO_DE_FOTO_DEFECTO = 1024
 
 def extraer_muestras_final(ruta_tif, carpeta_salida, num_muestras=50, tamano_tile=1024):
     """
@@ -76,7 +85,7 @@ def extraer_muestras_final(ruta_tif, carpeta_salida, num_muestras=50, tamano_til
                     print(f"Progreso: {conteo}/{num_muestras} imágenes generadas...")
 
     except Exception as e:
-        print(f"Error crítico al abrir el archivo: {e}")
+        print(f"Error crítico al abrir el archivo '{ruta_tif}': {e}")
         return
 
     print("\n--- Proceso Finalizado ---")
@@ -84,14 +93,48 @@ def extraer_muestras_final(ruta_tif, carpeta_salida, num_muestras=50, tamano_til
     if conteo < num_muestras:
         print(f"Nota: Solo se obtuvieron {conteo} porque el resto de áreas eran oscuras o fuera de límites.")
 
-# ==========================================
-# CONFIGURACIÓN DEL USUARIO
-# ==========================================
-# Cambia 'mi_ortofoto.tif' por el nombre real de tu archivo de 14GB
-ARCHIVO_ENTRADA = "../Ortofotomosaico 10 cm-px.tif" 
-CARPETA_RESULTADO = "muestras_para_roboflow"
-CANTIDAD_DE_FOTOS = 50
-TAMANO_DE_FOTO = 1024 # 1024x1024 es ideal para palmas
+def parse_args():
+    p = argparse.ArgumentParser(
+        description="Extrae recortes aleatorios de una ortofoto (JPEG para Roboflow)"
+    )
+    p.add_argument(
+        "--entrada",
+        type=Path,
+        default=ARCHIVO_ENTRADA_DEFECTO,
+        help="Ruta al GeoTIFF de la ortofoto",
+    )
+    p.add_argument(
+        "--salida",
+        type=Path,
+        default=CARPETA_RESULTADO_DEFECTO,
+        help="Carpeta donde guardar los JPEG",
+    )
+    p.add_argument(
+        "-n",
+        "--cantidad",
+        type=int,
+        default=CANTIDAD_DE_FOTOS_DEFECTO,
+        help="Número de fotos a extraer (default: 50)",
+    )
+    p.add_argument(
+        "--tamano",
+        type=int,
+        default=TAMANO_DE_FOTO_DEFECTO,
+        help="Tamaño del recorte en píxeles, cuadrado (default: 1024)",
+    )
+    return p.parse_args()
+
 
 if __name__ == "__main__":
-    extraer_muestras_final(ARCHIVO_ENTRADA, CARPETA_RESULTADO, CANTIDAD_DE_FOTOS, TAMANO_DE_FOTO)
+    args = parse_args()
+    entrada = args.entrada.expanduser().resolve()
+    if not entrada.is_file():
+        raise SystemExit(f"No existe el archivo de entrada: {entrada}")
+    if args.cantidad < 1 or args.tamano < 1:
+        raise SystemExit("--cantidad y --tamano deben ser mayores que 0")
+    extraer_muestras_final(
+        str(entrada),
+        str(args.salida.expanduser().resolve()),
+        args.cantidad,
+        args.tamano,
+    )
