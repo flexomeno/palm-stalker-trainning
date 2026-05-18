@@ -72,6 +72,28 @@ python validar_tile.py --work-dir ./trabajo_finca --tile c00040_r00040 --mostrar
 
 Salida: JPG con cajas verdes, centro rojo y barra con `tile_id` + conteo.
 
+## Mapa completo (ortofoto + todas las detecciones)
+
+Genera una sola imagen reducida del ortofoto con todas las cajas/centros del GeoJSON:
+
+```bash
+python recrear_mapa.py \
+  --work-dir ./trabajo_finca \
+  --geojson ./palmas.geojson \
+  --salida ./trabajo_finca/mapa_palmas.jpg \
+  --ancho-max 12000
+
+# Más rápido: cargar desde SQLite y solo puntos
+python recrear_mapa.py \
+  --work-dir ./trabajo_finca \
+  --fuente sqlite \
+  --solo-puntos \
+  --salida ./trabajo_finca/mapa_puntos.jpg \
+  --ancho-max 16000
+```
+
+No genera un GeoTIFF de 14 GB: exporta **JPG/PNG** a escala legible (`--ancho-max` controla el tamaño).
+
 ## Carpeta de trabajo (`--work-dir`)
 
 | Archivo | Contenido |
