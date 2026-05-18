@@ -1,0 +1,5 @@
+work/
+work_test/
+trabajo*/
+*.sqlite
+*.geojson
