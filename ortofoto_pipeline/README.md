@@ -39,7 +39,7 @@ python procesar_ortofoto.py infer \
   --segmento 0,0,20,20 \
   --max-tiles 50
 
-# 3) Deduplicar solapes (metros UTM)
+# 3) Deduplicar solapes (metros UTM; ~563k crudas → minutos, no horas)
 python procesar_ortofoto.py merge --work-dir ./trabajo_finca --d-min 4.0
 
 # 4) Vecino más cercano
@@ -51,6 +51,26 @@ python procesar_ortofoto.py export --work-dir ./trabajo_finca --salida palmas.ge
 # Estado
 python procesar_ortofoto.py status --work-dir ./trabajo_finca
 ```
+
+## Validación visual (tile + GeoJSON)
+
+Dibuja las cajas del GeoJSON sobre un recorte del ortofoto:
+
+```bash
+python validar_tile.py \
+  --work-dir ./trabajo_finca \
+  --geojson ./trabajo_finca/palmas.geojson \
+  --tile c00040_r00040 \
+  --salida ./trabajo_finca/validacion/mi_tile.jpg
+
+# O por índices de grilla
+python validar_tile.py --work-dir ./trabajo_finca --col-row 40,40
+
+# Con distancia al vecino en la etiqueta
+python validar_tile.py --work-dir ./trabajo_finca --tile c00040_r00040 --mostrar-vecino
+```
+
+Salida: JPG con cajas verdes, centro rojo y barra con `tile_id` + conteo.
 
 ## Carpeta de trabajo (`--work-dir`)
 
@@ -85,7 +105,8 @@ Distancias en **metros** (proyección UTM automática según el centro del raste
 
 - `infer --resume` (default): solo tiles `pending` o `error`.
 - Tras interrumpir, vuelve a ejecutar el mismo comando `infer`.
-- `merge` / `vecinos` / `export` se ejecutan cuando termines (o por bloques de segmentos).
+- **`merge`**: si lo interrumpes, no pierdes `detections_raw`; vuelve a lanzar `merge` (rehace todo el NMS). Muestra progreso cada 100k detecciones.
+- `vecinos` / `export` solo cuando `merge` termine con el mensaje `Palmas únicas: N`.
 
 ## Notas
 
