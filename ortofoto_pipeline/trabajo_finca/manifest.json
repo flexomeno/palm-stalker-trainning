@@ -1,0 +1,22 @@
+{
+  "tif_path": "/Users/flexomeno/Documents/Proyectos/Palm-stalker/ortofotomosaico_10_cm-px.tif",
+  "tif_fingerprint": "c1781d6241990ace",
+  "width": 87007,
+  "height": 69314,
+  "crs": "EPSG:4326",
+  "transform": [
+    9.011669999999517e-07,
+    0.0,
+    -72.67964821779154,
+    0.0,
+    -9.043120000000023e-07,
+    4.605639455001631
+  ],
+  "tile_px": 1024,
+  "overlap_px": 256,
+  "stride": 768,
+  "utm_epsg": 32618,
+  "center_lon": -72.64044429920705,
+  "center_lat": 4.574298714017631,
+  "n_tiles": 10170
+}
