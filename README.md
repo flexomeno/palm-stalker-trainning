@@ -1,295 +1,145 @@
-# Detección de palmas de aceite (YOLOv8)
+# Palm detector training
 
-Pipeline para extraer muestras desde una ortofoto, entrenar un detector YOLOv8 con el dataset público de Roboflow, y **contar palmas** en recortes de tu finca mediante detección por cajas (bounding boxes).
+Entrenamiento y despliegue de un detector **YOLOv8** de palmas de aceite sobre ortofotos, como parte del proyecto **Palm-stalker**. El repositorio está organizado en **dos módulos** según el tipo de trabajo.
 
-Parte del proyecto **Palm-stalker**.
+## Estructura del repositorio
+
+```
+palm-detector-training/
+├── README.md                 ← esta guía
+├── best.pt                   ← pesos entrenados (Colab → copiar aquí)
+├── resultados_training.md    ← log completo del entrenamiento en Colab
+├── requirements.txt          ← dependencias base (YOLO, torch, etc.)
+├── env/                      ← entorno Python 3.11 recomendado
+│
+├── pruebas_previas/          ← muestreo, entrenamiento, detección en recortes
+│   └── README.md
+│
+└── ortofoto_pipeline/        ← ortofoto completa: tiles, GeoJSON, mapa
+    └── README.md
+```
+
+## ¿Qué carpeta usar?
+
+| Necesitas… | Carpeta |
+|------------|---------|
+| Sacar muestras JPG, entrenar, probar el modelo en **recortes** | [**pruebas_previas/**](pruebas_previas/README.md) |
+| Procesar el **GeoTIFF completo** (~14 GB), inventario georreferenciado, reanudar por tiles | [**ortofoto_pipeline/**](ortofoto_pipeline/README.md) |
+
+### [pruebas_previas/](pruebas_previas/README.md)
+
+Flujo clásico de experimentación:
+
+- `sacar_muestras.py` — recortes aleatorios 1024×1024 desde el `.tif`
+- `entrenar_palmas.py` / notebook Colab — entrenamiento con dataset Roboflow
+- `detectar_palmas.py` — inferencia visual + conteo por imagen
+- `exportar_detecciones_csv.py` — cajas en píxeles para Excel/GIS ligero
+
+### [ortofoto_pipeline/](ortofoto_pipeline/README.md)
+
+Pipeline de producción sobre la finca entera:
+
+- Grilla con solape, inferencia **reanudable** (`state.sqlite`)
+- Deduplicación global (~303k palmas únicas en la corrida de referencia)
+- GeoJSON con centro, bbox, distancia al vecino
+- `validar_tile.py` y `recrear_mapa.py` para validación visual
 
 ---
 
-## ¿Para qué sirve?
-
-| Objetivo | Cómo se logra |
-|----------|----------------|
-| Probar el modelo en **tus ortofotos** | Recortes 1024×1024 con `sacar_muestras.py` |
-| **Contar palmas** por tile/imagen | `detectar_palmas.py` → número en barra inferior + suma en consola |
-| Revisar visualmente | Imágenes en `detecciones/` con cajas (sin etiquetas de confianza) |
-| Análisis GIS / Excel / Python | `exportar_detecciones_csv.py` → coordenadas por caja |
-| Entrenar sin suscripción Roboflow | Colab + dataset ZIP, o `entrenar_palmas.py` en local |
-
-El **conteo** no es un algoritmo aparte: es el **número de cajas** que el modelo detecta por imagen. Cada caja = una palma (o categoría 0–4 del dataset original).
-
----
-
-## Flujo general
-
-```
-Ortofoto (.tif)
-       │
-       ▼  sacar_muestras.py
-muestras_para_roboflow/  (JPG 1024×1024)
-       │
-       ├──────────────────────────────────┐
-       ▼                                  ▼
-  best.pt (modelo)              oil palm.v1i.yolov8.zip
-       │                                  │
-       │                          entrenar en Colab / entrenar_palmas.py
-       │                                  │
-       └──────────────┬───────────────────┘
-                      ▼
-            detectar_palmas.py  →  detecciones/ + conteo en imagen
-            exportar_detecciones_csv.py  →  detecciones.csv
-```
-
----
-
-## Estructura de carpetas
-
-```
-model-trainning/
-├── README.md                      ← esta guía
-├── requirements.txt               ← dependencias detección/entrenamiento
-├── best.pt                        ← pesos entrenados (Colab o local)
-├── oil palm.v1i.yolov8.zip        ← dataset Roboflow (descarga manual)
-├── oil-palm-dataset/              ← dataset descomprimido
-├── sacar_muestras.py              ← ortofoto → JPG
-├── entrenar_palmas.py             ← entrenar en Mac (opcional)
-├── entrenar_oil_palm_colab.ipynb  ← entrenar en Colab + GPU (recomendado)
-├── detectar_palmas.py             ← inferencia + imágenes con conteo
-├── exportar_detecciones_csv.py    ← exportar cajas a CSV
-├── muestras_para_roboflow/        ← entrada típica para detectar
-├── detecciones/                   ← salida visual
-├── detecciones.csv                ← salida tabular
-└── .venv/                         ← entorno Python 3.11 (recomendado)
-```
-
----
-
-## Requisitos e instalación
-
-### Entorno para detección y entrenamiento (YOLO)
+## Inicio rápido
 
 ```bash
-cd model-trainning
-python3.11 -m venv .venv
-source .venv/bin/activate
+# Entorno (una vez; usar Python 3.11, no 3.14)
+python3.11 -m venv env
+source env/bin/activate
 pip install -r requirements.txt
+
+# Pruebas en recortes
+cd pruebas_previas
+python sacar_muestras.py --entrada /ruta/ortofoto.tif --salida muestras -n 50
+
+# Ortofoto completa (desde ortofoto_pipeline/)
+cd ../ortofoto_pipeline
+pip install -r requirements.txt
+python procesar_ortofoto.py init --entrada /ruta/ortofoto.tif --work-dir ./trabajo_finca
+python procesar_ortofoto.py infer --work-dir ./trabajo_finca --pesos ../best.pt --resume
 ```
 
-Necesitas **`best.pt`** en esta carpeta (tras entrenar en Colab o copiar desde `runs/detect/oil-palm/weights/best.pt`).
-
-### Dependencias extra para `sacar_muestras.py` (ortofoto)
-
-```bash
-pip install rasterio numpy Pillow
-```
+El archivo **`best.pt`** debe estar en la **raíz del repo** (ambas carpetas lo referencian como `../best.pt`).
 
 ---
 
-## Entrenar el modelo
+## Review: `resultados_training.md`
 
-El ZIP de Roboflow trae **imágenes y etiquetas**, no el `.pt` ya entrenado. Sin suscripción de Roboflow, entrena tú mismo.
+Archivo de **~518 líneas** con el log crudo del entrenamiento en **Google Colab** (Ultralytics 8.4.51, GPU Tesla T4). Resume lo relevante para usar el modelo con confianza.
 
-### Opción A — Google Colab (recomendado)
+### Configuración del entrenamiento
 
-1. Sube a Google Drive (`Palm-stalker/`):
-   - `oil palm.v1i.yolov8.zip`
-   - `entrenar_oil_palm_colab.ipynb`
-2. Abre el notebook → **Runtime → T4 GPU**.
-3. Ejecuta las celdas en orden (monta Drive, copia ZIP a `/content`, entrena 50 épocas).
-4. Descarga o copia **`best.pt`** a `model-trainning/`.
+| Parámetro | Valor |
+|-----------|--------|
+| Modelo base | `yolov8n.pt` (nano, ~3M parámetros) |
+| Clases | 5 (`0`–`4`, dataset Roboflow *oil palm*) |
+| Imágenes | 1024×1024 |
+| Épocas | 50 (~1.07 h) |
+| Batch | 16 |
+| Optimizer | AdamW (auto) |
+| Train / val | 1612 / 461 imágenes |
+| Instancias en val | 30 579 cajas |
 
-**Nota:** No descomprimas leyendo directo desde Drive; el notebook copia el ZIP a disco local de Colab primero (evita error `Transport endpoint is not connected`).
+### Métricas finales (época 50 / `best.pt`)
 
-**`data.yaml`:** debe usar ruta absoluta `path: /content/oil-palm-dataset` (ya incluido en el notebook).
+Validación global en el conjunto **val**:
 
-Resultados típicos tras 50 épocas: **mAP50 ≈ 0.99**, Precision ≈ 0.99, Recall ≈ 0.98.
+| Métrica | Valor |
+|---------|--------|
+| **Precision (P)** | 0.989 |
+| **Recall (R)** | 0.981 |
+| **mAP50** | 0.993 |
+| **mAP50-95** | 0.930 |
 
-### Opción B — Entrenar en tu Mac
+Por clase (mAP50-95 destacado):
 
-```bash
-unzip "oil palm.v1i.yolov8.zip" -d oil-palm-dataset
-python entrenar_palmas.py
-```
+| Clase | Imágenes (val) | Instancias | P | R | mAP50 | mAP50-95 |
+|-------|----------------|------------|------|------|-------|----------|
+| 0 | 48 | 64 | 0.995 | 0.969 | 0.991 | 0.932 |
+| 1 | 442 | 23 237 | 0.992 | 0.995 | 0.995 | **0.970** |
+| 2 | 49 | 151 | 0.986 | 0.946 | 0.990 | 0.852 |
+| 3 | 416 | 6 732 | 0.994 | 0.993 | 0.994 | 0.932 |
+| 4 | 224 | 395 | 0.980 | 1.000 | 0.995 | 0.967 |
 
-Pesos en: `runs/detect/oil-palm/weights/best.pt` → cópialos como `best.pt`.
+La clase **1** concentra la mayoría de instancias y el mejor comportamiento global. La clase **2** es la más débil (menos ejemplos en val).
 
----
+### Evolución durante el entrenamiento
 
-## Uso del conteo y detección
+- **Épocas 1–10:** recall bajo (~0.35–0.70) pese a precision alta → el modelo era conservador al principio.
+- **Épocas 11–20:** salto fuerte en mAP50-95 (0.55 → ~0.81).
+- **Épocas 35–50:** meseta estable; mAP50-95 en val ~0.88–0.93.
 
-### 1. Generar muestras desde la ortofoto
+### Interpretación para el proyecto Palm-stalker
 
-Edita la configuración al final de `sacar_muestras.py`:
+**Fortalezas**
 
-```python
-ARCHIVO_ENTRADA = "../Ortofotomosaico 10 cm-px.tif"
-CARPETA_RESULTADO = "muestras_para_roboflow"
-CANTIDAD_DE_FOTOS = 50
-TAMANO_DE_FOTO = 1024
-```
+- Métricas de validación del dataset Roboflow son **muy buenas**; el modelo localiza bien palmas en tiles 1024×1024 similares al entrenamiento.
+- Inferencia ~6 ms/imagen en T4 (útil para miles de tiles).
 
-```bash
-python sacar_muestras.py
-```
+**Limitaciones (importante en ortofoto real)**
 
-**Qué hace:** abre el GeoTIFF con `rasterio`, elige ventanas aleatorias 1024×1024, descarta zonas muy oscuras (sin datos) y guarda JPEG en `muestras_para_roboflow/`.
+1. **Dominio:** entrenado en Roboflow; tu ortofoto (iluminación, variedad, edad) puede diferir → ajustar `--conf` (0.25–0.40) y revisar con `validar_tile.py`.
+2. **Cinco clases:** el conteo en pipeline suma todas las cajas por encima del umbral; no distingue automáticamente “una palma productiva” sin reglas de clase.
+3. **Val ≠ finca:** 461 imágenes de val no garantizan el mismo error en 87k×69k px; el pipeline de `ortofoto_pipeline` añade deduplicación (`d_min` 4 m) porque el solape multiplica detecciones.
+4. **Log final:** parte del archivo son curvas PR embebidas (arrays largos); para decisiones usa las tablas de época 50 y la validación de `best.pt` (líneas 309–318).
 
----
+### Conclusión del review
 
-### 2. Detectar palmas y ver el conteo
-
-```bash
-python detectar_palmas.py
-```
-
-**Entrada:** `muestras_para_roboflow/`  
-**Salida:** `detecciones/` — misma resolución, con:
-
-- Cajas de detección **sin texto** de clase ni confianza
-- Barra inferior: **`Detecciones: N`** (conteo de ese tile)
-
-**Consola:** total de imágenes procesadas y suma global de detecciones.
-
-#### Parámetros útiles
-
-| Parámetro | Default | Descripción |
-|-----------|---------|-------------|
-| `--pesos` | `best.pt` | Archivo del modelo |
-| `--entrada` | `muestras_para_roboflow` | Carpeta de imágenes |
-| `--salida` | `detecciones` | Carpeta de salida |
-| `--conf` | `0.25` | Umbral mínimo de confianza (sube a `0.4`–`0.5` para menos falsos positivos) |
-| `--imgsz` | `1024` | Tamaño de inferencia (debe coincidir con el entrenamiento) |
-
-```bash
-python detectar_palmas.py --conf 0.4
-python detectar_palmas.py --entrada otra_carpeta --salida resultados_prueba
-```
-
-#### Cómo interpretar el conteo
-
-- **Por imagen:** el número en la barra = palmas detectadas en ese recorte.
-- **Total del lote:** al final del script en terminal.
-- **Limitación:** es conteo por **tile**, no por finca completa. Para conteo global hay que mosaificar la ortofoto en tiles, detectar en cada uno y **deduplicar** palmas en bordes solapados (no implementado aquí).
-- **Clases 0–4:** el dataset Roboflow usa 5 categorías; el conteo incluye todas las cajas por encima de `--conf`.
+El entrenamiento en Colab **cumplió el objetivo** de obtener un `best.pt` sólido para detección en tiles. Para inventario de finca, combinar ese modelo con **`ortofoto_pipeline`** (tiles + merge + GeoJSON) es el camino adecuado; para iterar hiperparámetros o etiquetar, usar **`pruebas_previas`**.
 
 ---
 
-### 3. Exportar coordenadas a CSV
+## Dataset y créditos
 
-```bash
-python exportar_detecciones_csv.py
-```
+- Dataset: [oil palm on Roboflow Universe](https://universe.roboflow.com/oil-palm-ni8i3/oil-palm-oxvyn) (YOLOv8, ~2303 imágenes, CC BY 4.0)
+- Motor: [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)
 
-**Salida:** `detecciones.csv` (una fila por caja).
+## Archivos grandes (git)
 
-| Columna | Significado |
-|---------|-------------|
-| `imagen` | Nombre del JPG |
-| `clase` | ID 0–4 |
-| `confianza` | Score del modelo (0–1) |
-| `x1`, `y1`, `x2`, `y2` | Esquinas de la caja en **píxeles** (origen arriba-izquierda) |
-| `ancho`, `alto` | Tamaño de la caja |
-
-Las imágenes **sin detecciones** no generan filas.
-
-```bash
-python exportar_detecciones_csv.py --csv reporte.csv --conf 0.4
-```
-
-**Para qué sirve el CSV:** cruzar con GIS (ubicar cada caja en coordenadas del ortofoto si guardas offset del tile), filtrar por confianza, estadísticas por clase, etc.
-
----
-
-## Referencia de scripts
-
-### `sacar_muestras.py`
-
-| | |
-|---|---|
-| **Propósito** | Crear tiles JPEG desde ortofoto para pruebas o etiquetado |
-| **Entrada** | GeoTIFF multibanda |
-| **Salida** | `muestras_para_roboflow/palma_muestra_XXX.jpg` |
-| **Dependencias** | `rasterio`, `numpy`, `Pillow` |
-
----
-
-### `entrenar_palmas.py`
-
-| | |
-|---|---|
-| **Propósito** | Entrenar YOLOv8n localmente con `oil-palm-dataset/` |
-| **Entrada** | Dataset descomprimido + `data.yaml` (path absoluto auto-generado) |
-| **Salida** | `runs/detect/oil-palm/weights/best.pt` |
-| **Parámetros internos** | 50 épocas, imgsz 1024, batch 8 |
-
----
-
-### `entrenar_oil_palm_colab.ipynb`
-
-| | |
-|---|---|
-| **Propósito** | Mismo entrenamiento en Colab con GPU T4 y Google Drive |
-| **Entrada** | ZIP en Drive → copia a `/content` → descomprime |
-| **Salida** | `best.pt` en Drive y/o descarga directa |
-
----
-
-### `detectar_palmas.py`
-
-| | |
-|---|---|
-| **Propósito** | Inferencia visual + **conteo por imagen** |
-| **Entrada** | Carpeta de JPG + `best.pt` |
-| **Salida** | `detecciones/*.jpg` con cajas y barra de conteo |
-| **No genera** | CSV (usar script aparte) |
-
----
-
-### `exportar_detecciones_csv.py`
-
-| | |
-|---|---|
-| **Propósito** | Tabla de todas las detecciones con coordenadas |
-| **Entrada** | Misma que detección (carpeta + `best.pt`) |
-| **Salida** | `detecciones.csv` |
-| **No modifica** | Imágenes ni `detectar_palmas.py` |
-
----
-
-## Dataset Roboflow
-
-- Proyecto: [oil palm on Universe](https://universe.roboflow.com/oil-palm-ni8i3/oil-palm-oxvyn)
-- Export: **YOLOv8** → `oil palm.v1i.yolov8.zip`
-- ~2303 imágenes, 5 clases (`0`–`4`), tiles 1024×1024
-- Licencia: CC BY 4.0
-
----
-
-## Orden recomendado (primera vez)
-
-1. `pip install -r requirements.txt` en `.venv`
-2. Entrenar en Colab → guardar `best.pt` aquí
-3. `python sacar_muestras.py` (si tienes ortofoto)
-4. `python detectar_palmas.py` → revisar `detecciones/`
-5. `python exportar_detecciones_csv.py` → analizar `detecciones.csv`
-
----
-
-## Problemas frecuentes
-
-| Problema | Solución |
-|----------|----------|
-| `No hay pesos en best.pt` | Copia `best.pt` desde Colab o entrena |
-| Colab: error al descomprimir ZIP en Drive | Usar celda que copia a `/content` primero |
-| Colab: `missing path /content/valid/images` | `path` en `data.yaml` debe ser absoluto al dataset |
-| Muchas cajas falsas | `python detectar_palmas.py --conf 0.4` |
-| Pocas detecciones | Bajar `--conf` a `0.15`–`0.2` |
-| `sacar_muestras` falla al abrir TIF | Verificar ruta y `pip install rasterio` |
-| Entrenamiento lento en Mac | Usar Colab con GPU |
-
----
-
-## Créditos
-
-- Dataset y referencia de métricas: Roboflow Universe — *oil palm* / *oil-palm-oxvyn*
-- Modelo: [Ultralytics YOLOv8](https://github.com/ultralytics/ultralytics)
+No versionar: `env/`, `*.geojson`, `state.sqlite`, ortofotos `.tif`, carpetas `trabajo_*` / `work/`. Ver `.gitignore` en cada módulo.

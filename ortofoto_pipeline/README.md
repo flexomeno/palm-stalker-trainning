@@ -2,7 +2,7 @@
 
 Procesamiento **progresivo y reanudable** de un GeoTIFF grande: inferencia YOLO por tiles con solape, deduplicación global, distancia al vecino más cercano y exportación **GeoJSON**.
 
-No modifica los scripts de la raíz del repo (`sacar_muestras.py`, `detectar_palmas.py`, etc.).
+Complementa el módulo [**pruebas_previas**](../pruebas_previas/README.md) (recortes y pruebas puntuales). Guía general del repo: [README principal](../README.md).
 
 ## Requisitos
 
